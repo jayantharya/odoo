@@ -1,3 +1,6 @@
+from datetime import date
+
+
 class ShipmentService:
     def create_shipment(self, weight_kg, capacity_kg):
         if weight_kg > capacity_kg:
@@ -18,3 +21,56 @@ class ShipmentService:
             "status": "Routed",
             "api_key": api_key,
         }
+
+    def dispatch_trip(self, cargo_weight, vehicle, driver):
+        self._validate_transaction_state(cargo_weight, vehicle, driver)
+
+        return {
+            "trip_status": "Dispatched",
+            "vehicle_status": "On Trip",
+            "driver_status": "On Trip",
+        }
+
+    def complete_trip(self, vehicle, driver):
+        return {
+            "trip_status": "Completed",
+            "vehicle_status": "Available",
+            "driver_status": "Available",
+        }
+
+    def cancel_trip(self, vehicle, driver):
+        return {
+            "trip_status": "Cancelled",
+            "vehicle_status": "Available",
+            "driver_status": "Available",
+        }
+
+    def open_maintenance(self, vehicle):
+        return {"vehicle_status": "In Shop"}
+
+    def close_maintenance(self, vehicle):
+        if vehicle.get("retired"):
+            raise ValueError("Vehicle is Retired and cannot be made Available")
+        return {"vehicle_status": "Available"}
+
+    def _validate_transaction_state(self, cargo_weight, vehicle, driver):
+        if cargo_weight > vehicle.get("max_load_capacity", 0):
+            raise ValueError("Cargo weight exceeds vehicle capacity")
+
+        if vehicle.get("status") != "Available":
+            raise ValueError("Vehicle must be Available")
+
+        if driver.get("status") != "Available":
+            raise ValueError("Driver must be Available")
+
+        license_expiry = driver.get("license_expiry_date")
+        if isinstance(license_expiry, str):
+            try:
+                expiry_date = date.fromisoformat(license_expiry)
+            except ValueError as exc:
+                raise ValueError("Driver license expiry date is invalid") from exc
+        else:
+            expiry_date = license_expiry
+
+        if expiry_date is None or expiry_date <= date.today():
+            raise ValueError("Driver license must be valid")
