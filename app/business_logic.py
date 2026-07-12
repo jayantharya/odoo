@@ -1,7 +1,21 @@
+from contextlib import contextmanager
 from datetime import date
 
 
 class ShipmentService:
+    def __init__(self):
+        self.last_transaction = None
+
+    @contextmanager
+    def transaction(self, name):
+        self.last_transaction = f"{name}:begin"
+        try:
+            yield
+            self.last_transaction = f"{name}:commit"
+        except Exception:
+            self.last_transaction = f"{name}:rollback"
+            raise
+
     def create_shipment(self, weight_kg, capacity_kg):
         if weight_kg > capacity_kg:
             raise ValueError("Cargo weight exceeds capacity")
@@ -23,35 +37,39 @@ class ShipmentService:
         }
 
     def dispatch_trip(self, cargo_weight, vehicle, driver):
-        self._validate_transaction_state(cargo_weight, vehicle, driver)
-
-        return {
-            "trip_status": "Dispatched",
-            "vehicle_status": "On Trip",
-            "driver_status": "On Trip",
-        }
+        with self.transaction("dispatch"):
+            self._validate_transaction_state(cargo_weight, vehicle, driver)
+            return {
+                "trip_status": "Dispatched",
+                "vehicle_status": "On Trip",
+                "driver_status": "On Trip",
+            }
 
     def complete_trip(self, vehicle, driver):
-        return {
-            "trip_status": "Completed",
-            "vehicle_status": "Available",
-            "driver_status": "Available",
-        }
+        with self.transaction("complete"):
+            return {
+                "trip_status": "Completed",
+                "vehicle_status": "Available",
+                "driver_status": "Available",
+            }
 
     def cancel_trip(self, vehicle, driver):
-        return {
-            "trip_status": "Cancelled",
-            "vehicle_status": "Available",
-            "driver_status": "Available",
-        }
+        with self.transaction("cancel"):
+            return {
+                "trip_status": "Cancelled",
+                "vehicle_status": "Available",
+                "driver_status": "Available",
+            }
 
     def open_maintenance(self, vehicle):
-        return {"vehicle_status": "In Shop"}
+        with self.transaction("maintenance_open"):
+            return {"vehicle_status": "In Shop"}
 
     def close_maintenance(self, vehicle):
-        if vehicle.get("retired"):
-            raise ValueError("Vehicle is Retired and cannot be made Available")
-        return {"vehicle_status": "Available"}
+        with self.transaction("maintenance_close"):
+            if vehicle.get("retired"):
+                raise ValueError("Vehicle is Retired and cannot be made Available")
+            return {"vehicle_status": "Available"}
 
     def _validate_transaction_state(self, cargo_weight, vehicle, driver):
         if cargo_weight > vehicle.get("max_load_capacity", 0):
