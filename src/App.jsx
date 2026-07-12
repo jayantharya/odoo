@@ -1,31 +1,53 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
-import ProtectedRoute from './routes/ProtectedRoute';
+import { useState, useEffect } from 'react'
+import Vehicles from './pages/Vehicles';
+function App() {
+    //const [vehicles, setVehicles] = useState([])
+    const [loading, setLoading] = useState(true)
 
-// Dummy page components for the boilerplate
-const Dashboard = () => <div className="p-6">Dashboard KPI Content</div>;
-const Vehicles = () => <div className="p-6">Vehicle Registry CRUD</div>;
-const Drivers = () => <div className="p-6">Driver Management CRUD</div>;
-const Trips = () => <div className="p-6">Trip Management Pipeline</div>;
+    // This function fetches data from your Python API
+    useEffect(() => {
+        fetch('http://127.0.0.1:8000/vehicles/')
+            .then(response => response.json())
+            .then(data => {
+                setVehicles(data)
+                setLoading(false)
+            })
+            .catch(error => console.error("Error fetching data:", error))
+    }, [])
 
-export default function App() {
     return (
-        <AuthProvider>
-            <Router>
-                <Routes>
-                    <Route path="/login" element={<div>Login Page</div>} />
+        <div style={{ padding: '20px', fontFamily: 'sans-serif' }}>
+            <h1>🚚 Odoo Fleet Management</h1>
 
-                    <Route element={<ProtectedRoute />}>
-                        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                        <Route path="/dashboard" element={<Dashboard />} />
-                        <Route path="/vehicles" element={<Vehicles />} />
-                        <Route path="/drivers" element={<Drivers />} />
-                        <Route path="/trips" element={<Trips />} />
-                        <Route path="/maintenance" element={<div className="p-6">Maintenance Logs</div>} />
-                        <Route path="/expenses" element={<div className="p-6">Fuel & Expenses</div>} />
-                    </Route>
-                </Routes>
-            </Router>
-        </AuthProvider>
-    );
+            {loading ? (
+                <p>Loading vehicles from database...</p>
+            ) : (
+                <table border="1" cellPadding="10" style={{ borderCollapse: 'collapse', width: '100%' }}>
+                    <thead>
+                        <tr>
+                            <th>Plate Number</th>
+                            <th>Capacity (kg)</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {vehicles.map((vehicle) => (
+                            <tr key={vehicle._id}>
+                                <td>{vehicle.plate_number}</td>
+                                <td>{vehicle.capacity_kg}</td>
+                                <td style={{
+                                    color: vehicle.status === 'Active' ? 'green' : 'red',
+                                    fontWeight: 'bold'
+                                }}>
+                                    {vehicle.status}
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            )}
+        </div>
+    )
 }
+
+export default App
