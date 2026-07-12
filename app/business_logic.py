@@ -1,11 +1,10 @@
-from datetime import date
+from datetime import datetime
 
 
 class ShipmentService:
     def create_shipment(self, weight_kg, capacity_kg):
         if weight_kg > capacity_kg:
             raise ValueError("Cargo weight exceeds capacity")
-
         return {
             "weight_kg": weight_kg,
             "capacity_kg": capacity_kg,
@@ -14,16 +13,22 @@ class ShipmentService:
 
     def route_shipment(self, destination, api_key):
         if not api_key:
-            raise PermissionError("authenticated access is required to route shipment")
-
-        return {
-            "destination": destination,
-            "status": "Routed",
-            "api_key": api_key,
-        }
+            raise PermissionError("Request must be authenticated")
+        return {"destination": destination, "routed": True}
 
     def dispatch_trip(self, cargo_weight, vehicle, driver):
-        self._validate_transaction_state(cargo_weight, vehicle, driver)
+        if vehicle.get("status") != "Available":
+            raise ValueError("Vehicle is not Available")
+
+        if cargo_weight > vehicle.get("max_load_capacity", 0):
+            raise ValueError("Cargo weight exceeds vehicle capacity")
+
+        if driver.get("status") != "Available":
+            raise ValueError("Driver is not Available")
+
+        expiry = datetime.strptime(driver["license_expiry_date"], "%Y-%m-%d")
+        if expiry < datetime.now():
+            raise ValueError("Driver license has expired")
 
         return {
             "trip_status": "Dispatched",
@@ -50,27 +55,5 @@ class ShipmentService:
 
     def close_maintenance(self, vehicle):
         if vehicle.get("retired"):
-            raise ValueError("Vehicle is Retired and cannot be made Available")
+            raise ValueError("Vehicle is Retired and cannot return to service")
         return {"vehicle_status": "Available"}
-
-    def _validate_transaction_state(self, cargo_weight, vehicle, driver):
-        if cargo_weight > vehicle.get("max_load_capacity", 0):
-            raise ValueError("Cargo weight exceeds vehicle capacity")
-
-        if vehicle.get("status") != "Available":
-            raise ValueError("Vehicle must be Available")
-
-        if driver.get("status") != "Available":
-            raise ValueError("Driver must be Available")
-
-        license_expiry = driver.get("license_expiry_date")
-        if isinstance(license_expiry, str):
-            try:
-                expiry_date = date.fromisoformat(license_expiry)
-            except ValueError as exc:
-                raise ValueError("Driver license expiry date is invalid") from exc
-        else:
-            expiry_date = license_expiry
-
-        if expiry_date is None or expiry_date <= date.today():
-            raise ValueError("Driver license must be valid")
